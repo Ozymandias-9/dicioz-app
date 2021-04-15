@@ -6,6 +6,11 @@ const app = express();
 const students = require('./files/students');
 const teachers = require('./files/teachers')
 
+//Settings
+app.use(express.json());
+app.use(express.urlencoded({ extended : true}));
+
+//Actions
 app.listen(process.env.PORT || 3000, ()=>{
     console.log("Server is running...")
 });
