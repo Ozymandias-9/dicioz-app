@@ -1,28 +1,38 @@
 const express = require('express');
-const { query } = require('./config/database');
 const students = express.Router()
 const db = require('./config/database');
 const tabla = 'alumnos';
+const jwt = require('jsonwebtoken');
 
 //GET
-students.get("/", (req,res,next) => {
-    console.log("You've entered the students' server.")
-    return res.status(200).json({ code: 1, message: "Connected to students' server succesfully." });
-});
+students.get("/", async (req,res,next) => {
+    console.log("You've entered the students' server.");
+    const query = await db.query(`SELECT * FROM ${tabla};`);
+
+    if(query.length !== 0){
+        return res.status(200).json({code: 200, message: query});
+    }
+    return res.status(400).json({code: 400, message: "Sin información en la base de datos."});
+})
+
 students.get('/:id([0-9]{1,3})', async (req, res, next)=>{
     const id = req.params.id;
-    if(req.params.id){
-        const students = await db.query(`SELECT * FROM ${tabla} WHERE id = ${id};`);
-        return res.status(200).json({code: 200, message: students});
+    const query =  await db.query(`SELECT * FROM ${tabla} WHERE id = ${id};`);
+    if(query.length !== 0){
+        return res.status(200).json({code: 200, message: query});
     }
+    return res.status(400).json({code: 400, message: "Estudiante no encontrado."});
 })
+
 students.get('/:name([A-Za-z]+)', async (req, res, next)=>{
     const name = req.params.name;
+    const query = await db.query(`SELECT * FROM ${tabla} WHERE nombre LIKE '%${name}%';`);
 
-    if(name){
-        const students = await db.query(`SELECT * FROM ${tabla} WHERE nombre LIKE '%${name}%';`);
-        return res.status(200).json({code: 200, message: students});
+    if(query.length !== 0){
+        return res.status(200).json({code: 200, message: query});
     }
+    return res.status(400).json({code: 400, message: "Estudiante no encontrado."});
+    
 })
 
 //POST
@@ -36,10 +46,37 @@ students.post('/signin', async (req, res, next)=>{
         if(query.affectedRows == 1){
             return res.status(200).json({code: 200, message: `Registro completado correctamente. ${query.affectedRows} fila(s) modificadas.`});
         }
+        console.log("Hubo un fallo en la acción.");
         return res.status(400).json({code: 400, message: "Hubo un fallo en la acción."});
     }
+    console.log("Registro incompleto.");
     return res.status(400).json({code: 400, message: "Registro incompleto."});
 })
+
+students.post("/login", async (req, res, next) => {
+    const {apellido, expediente} = req.body;
+    const query = `SELECT * FROM ${tabla} WHERE apellido = '${apellido}' AND expediente = '${expediente}';`;
+    const rows = await db.query(query);
+    console.log("Apellido: ");
+    console.log(apellido);
+    console.log("Expediente: ")
+    console.log(expediente)
+
+    if (apellido && expediente){
+        if(rows.length == 1){
+            const token = jwt.sign({
+                id: rows[0].id,
+                apellido: rows.apellido,
+                expediente: rows.expediente
+            }, "debugkey");
+            return res.status(200).json({code: 200, message: token});
+        }
+        else{
+            return res.status(401).json({code: 401, message: "Usuario y/o contraseña incorrectos"});
+        }
+    }
+    return res.status(500).json({code: 500, message: "Campos incompletos"});
+});
 
 //DELETE
 students.delete('/:id([0-9]{1,3})', async (req, res, next)=>{
@@ -51,6 +88,7 @@ students.delete('/:id([0-9]{1,3})', async (req, res, next)=>{
     }
     return res.status(400).json({code: 400, message: "Eliminación fallida."})
 })
+
 students.delete('/:name([A-Za-z]+)', async (req, res, next)=>{
     const name = req.params.name;
     const query = await db.query(`DELETE FROM ${tabla} WHERE nombre LIKE '%${name}%';`);
